@@ -27,6 +27,8 @@ const PORT = process.env.PORT ?? 8080;
 // ---------------------------------------------------------------------------
 const ALLOWED_ORIGINS = [
   'https://uccdata.yddconsulting.com',
+  'http://uccdata.yddconsulting.com',   // HTTP during SSL propagation
+  'https://ucc-data-portal-frontend.vercel.app',
   'http://localhost:5173',
   'http://localhost:4173',
 ];
