@@ -1,0 +1,16 @@
+{
+  "name": "ucc-data-portal-backend",
+  "version": "1.0.0",
+  "description": "Express backend for UCC Data Portal — connects to DreamHost MySQL",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "exceljs": "^4.4.0",
+    "express": "^4.19.2",
+    "mysql2": "^3.9.7"
+  }
+}
