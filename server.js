@@ -150,6 +150,13 @@ app.get('/backend/export.php', async (req, res) => {
   const state  = (String(req.query.state ?? 'ALL').trim().toUpperCase()) || 'ALL';
   const format = String(req.query.format ?? 'csv').trim().toLowerCase();
 
+  // limit: optional positive integer — caps the number of rows returned
+  const limitRaw = req.query.limit !== undefined ? parseInt(String(req.query.limit), 10) : null;
+  const limit    = limitRaw !== null && Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : null;
+
+  // random: when true, rows are returned in random order (used for anon sampling)
+  const random = String(req.query.random ?? '').toLowerCase() === 'true';
+
   if (!['csv', 'json', 'jsonl', 'xlsx'].includes(format)) {
     return res.status(400).json({ error: 'Invalid format. Use csv, xlsx, json, or jsonl.' });
   }
@@ -198,7 +205,13 @@ app.get('/backend/export.php', async (req, res) => {
       sql += ' WHERE ' + conditions.join(' AND ');
     }
 
-    sql += ' ORDER BY filing_date DESC, created_at DESC';
+    // Random order for anon sampling; otherwise most-recent first
+    sql += random ? ' ORDER BY RAND()' : ' ORDER BY filing_date DESC, created_at DESC';
+
+    if (limit !== null) {
+      sql += ' LIMIT ?';
+      params.push(limit);
+    }
 
     const [rows] = await connection.execute(sql, params);
 
