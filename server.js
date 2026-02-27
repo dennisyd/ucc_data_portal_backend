@@ -154,7 +154,11 @@ app.get('/backend/export.php', async (req, res) => {
   const limitRaw = req.query.limit !== undefined ? parseInt(String(req.query.limit), 10) : null;
   const limit    = limitRaw !== null && Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : null;
 
-  // random: when true, rows are returned in random order (used for anon sampling)
+  // random: when true, a random sample is returned instead of most-recent rows.
+  // We do NOT use ORDER BY RAND() in SQL — it is catastrophically slow on large
+  // tables because MySQL must score every row. Instead we fetch a bounded pool
+  // (pool size = limit * 20, capped at 5000) with normal ordering and then
+  // shuffle + slice in Node, which is fast regardless of table size.
   const random = String(req.query.random ?? '').toLowerCase() === 'true';
 
   if (!['csv', 'json', 'jsonl', 'xlsx'].includes(format)) {
@@ -205,17 +209,33 @@ app.get('/backend/export.php', async (req, res) => {
       sql += ' WHERE ' + conditions.join(' AND ');
     }
 
-    // Random order for anon sampling; otherwise most-recent first
-    sql += random ? ' ORDER BY RAND()' : ' ORDER BY filing_date DESC, created_at DESC';
+    sql += ' ORDER BY filing_date DESC, created_at DESC';
 
-    // LIMIT cannot be passed as a prepared-statement placeholder in MySQL —
-    // the driver sends it as a string and MySQL ignores it. Safe to interpolate
-    // directly because `limit` was already validated as a positive integer above.
-    if (limit !== null) {
+    // For random sampling we fetch a bounded pool from MySQL, then shuffle in
+    // Node. Pool = limit * 20 rows, capped at 5000 — fast on any table size.
+    // For non-random requests we apply LIMIT directly in SQL.
+    // LIMIT cannot use a prepared-statement placeholder in MySQL (the driver
+    // sends it as a string which MySQL ignores), so we interpolate the already-
+    // validated integer directly.
+    if (random && limit !== null) {
+      const poolSize = Math.min(limit * 20, 5000);
+      sql += ` LIMIT ${poolSize}`;
+    } else if (limit !== null) {
       sql += ` LIMIT ${limit}`;
     }
 
-    const [rows] = await connection.execute(sql, params);
+    const [rawRows] = await connection.execute(sql, params);
+
+    // Shuffle the pool and slice to the requested limit
+    let rows = rawRows;
+    if (random && limit !== null) {
+      const pool = Array.from(rawRows);
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+      rows = pool.slice(0, limit);
+    }
 
     // -- Send the response in the requested format -------------------------
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
