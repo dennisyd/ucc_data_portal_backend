@@ -305,7 +305,7 @@ app.get('/backend/states', async (req, res) => {
     // Read directly from the States_Metadata table — already contains
     // the pre-aggregated total_records and last_created_at per state.
     const [rows] = await connection.execute(
-      'SELECT debtor_state, total_records, last_created_at FROM States_Metadata ORDER BY debtor_state ASC'
+      'SELECT debtor_state, total_records, last_created_at FROM States_Metadata ORDER BY total_records DESC'
     );
 
     const formatted = rows.map((row) => ({
