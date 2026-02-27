@@ -208,9 +208,11 @@ app.get('/backend/export.php', async (req, res) => {
     // Random order for anon sampling; otherwise most-recent first
     sql += random ? ' ORDER BY RAND()' : ' ORDER BY filing_date DESC, created_at DESC';
 
+    // LIMIT cannot be passed as a prepared-statement placeholder in MySQL —
+    // the driver sends it as a string and MySQL ignores it. Safe to interpolate
+    // directly because `limit` was already validated as a positive integer above.
     if (limit !== null) {
-      sql += ' LIMIT ?';
-      params.push(limit);
+      sql += ` LIMIT ${limit}`;
     }
 
     const [rows] = await connection.execute(sql, params);
