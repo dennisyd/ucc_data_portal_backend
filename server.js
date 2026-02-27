@@ -303,12 +303,12 @@ app.get('/backend/states', async (req, res) => {
     });
 
     const [rows] = await connection.execute(
-      'SELECT state_name, last_updated FROM state_metadata ORDER BY state_name ASC'
+      'SELECT state_abbr, last_updated FROM state_metadata ORDER BY state_abbr ASC'
     );
 
     // Format last_updated dates as "YYYY-MM-DD" strings (MySQL returns Date objects)
     const formatted = rows.map((row) => ({
-      state_name:   row.state_name,
+      state_abbr:   row.state_abbr,
       last_updated: row.last_updated
         ? new Date(row.last_updated).toISOString().slice(0, 10)
         : null,
