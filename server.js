@@ -302,9 +302,21 @@ app.get('/backend/states', async (req, res) => {
       charset:  'utf8mb4',
     });
 
-    const [rows] = await connection.execute(
-      'SELECT state_abbr, last_updated FROM state_metadata ORDER BY state_abbr ASC'
-    );
+    // LEFT JOIN counts from ucc_filings so the count is always live and accurate.
+    // The GROUP BY on an indexed debtor_state column is fast even on large tables.
+    const [rows] = await connection.execute(`
+      SELECT
+        sm.state_abbr,
+        sm.last_updated,
+        COALESCE(counts.record_count, 0) AS record_count
+      FROM state_metadata sm
+      LEFT JOIN (
+        SELECT debtor_state, COUNT(*) AS record_count
+        FROM ucc_filings
+        GROUP BY debtor_state
+      ) counts ON counts.debtor_state = sm.state_abbr
+      ORDER BY sm.state_abbr ASC
+    `);
 
     // Format last_updated dates as "YYYY-MM-DD" strings (MySQL returns Date objects)
     const formatted = rows.map((row) => ({
@@ -312,6 +324,7 @@ app.get('/backend/states', async (req, res) => {
       last_updated: row.last_updated
         ? new Date(row.last_updated).toISOString().slice(0, 10)
         : null,
+      record_count: Number(row.record_count),
     }));
 
     return res.json(formatted);
