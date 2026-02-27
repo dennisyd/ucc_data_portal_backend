@@ -302,19 +302,30 @@ app.get('/backend/states', async (req, res) => {
       charset:  'utf8mb4',
     });
 
-    // LEFT JOIN counts from ucc_filings so the count is always live and accurate.
-    // The GROUP BY on an indexed debtor_state column is fast even on large tables.
+    // For each state, return:
+    //   total_count  — all records for that state
+    //   date_count   — records whose created_at falls on last_updated date
+    //                  (i.e. how many records were added in the most recent batch)
     const [rows] = await connection.execute(`
       SELECT
         sm.state_abbr,
         sm.last_updated,
-        COALESCE(counts.record_count, 0) AS record_count
+        COALESCE(totals.total_count, 0)  AS total_count,
+        COALESCE(batch.date_count,   0)  AS date_count
       FROM state_metadata sm
       LEFT JOIN (
-        SELECT debtor_state, COUNT(*) AS record_count
+        SELECT debtor_state, COUNT(*) AS total_count
         FROM ucc_filings
         GROUP BY debtor_state
-      ) counts ON counts.debtor_state = sm.state_abbr
+      ) totals ON totals.debtor_state = sm.state_abbr
+      LEFT JOIN (
+        SELECT uf.debtor_state, COUNT(*) AS date_count
+        FROM ucc_filings uf
+        INNER JOIN state_metadata sm2
+          ON sm2.state_abbr = uf.debtor_state
+          AND DATE(uf.created_at) = sm2.last_updated
+        GROUP BY uf.debtor_state
+      ) batch ON batch.debtor_state = sm.state_abbr
       ORDER BY sm.state_abbr ASC
     `);
 
@@ -324,7 +335,8 @@ app.get('/backend/states', async (req, res) => {
       last_updated: row.last_updated
         ? new Date(row.last_updated).toISOString().slice(0, 10)
         : null,
-      record_count: Number(row.record_count),
+      total_count: Number(row.total_count),
+      date_count:  Number(row.date_count),
     }));
 
     return res.json(formatted);
