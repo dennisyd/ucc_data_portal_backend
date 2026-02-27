@@ -278,11 +278,59 @@ app.get('/backend/export.php', async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Route: GET /backend/states
+//
+// Returns all rows from the `state_metadata` table as JSON.
+// Each row contains the state name and the date data was last loaded.
+//
+// To update a state after loading new data, run in MySQL:
+//   INSERT INTO state_metadata (state_name, last_updated)
+//     VALUES ('California', CURDATE())
+//     ON DUPLICATE KEY UPDATE last_updated = CURDATE();
+//
+// Response shape:
+//   [{ state_name: string, last_updated: string | null }, ...]
+// ---------------------------------------------------------------------------
+app.get('/backend/states', async (req, res) => {
+  let connection;
+  try {
+    connection = await mysql.createConnection({
+      host:     config.host,
+      database: config.database,
+      user:     config.user,
+      password: config.password,
+      charset:  'utf8mb4',
+    });
+
+    const [rows] = await connection.execute(
+      'SELECT state_name, last_updated FROM state_metadata ORDER BY state_name ASC'
+    );
+
+    // Format last_updated dates as "YYYY-MM-DD" strings (MySQL returns Date objects)
+    const formatted = rows.map((row) => ({
+      state_name:   row.state_name,
+      last_updated: row.last_updated
+        ? new Date(row.last_updated).toISOString().slice(0, 10)
+        : null,
+    }));
+
+    return res.json(formatted);
+
+  } catch (err) {
+    console.error('[states error]', err.message);
+    return res.status(500).json({ error: 'Could not load state data.' });
+  } finally {
+    if (connection) await connection.end();
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Start
 // ---------------------------------------------------------------------------
 app.listen(PORT, () => {
   console.log(`\nUCC backend running → http://localhost:${PORT}`);
   console.log(`Export endpoint    → http://localhost:${PORT}/backend/export.php`);
+  console.log(`States endpoint    → http://localhost:${PORT}/backend/states`);
   console.log(`Environment        → ${process.env.NODE_ENV ?? 'development'}\n`);
 });
 
