@@ -5,12 +5,15 @@ import { BULK_COLUMNS, rowsToCsv, rowsToXlsx }     from '../utils/export-helpers
 
 const router = Router();
 
-/** Roles permitted to use bulk export. */
-const BULK_ROLES = new Set(['bulk', 'both', 'admin']);
+/** Roles permitted to use bulk export (anonymous allowed with auto-capped limit). */
+const BULK_ROLES = new Set(['anonymous', 'bulk', 'both', 'admin']);
+
+/** Anonymous bulk exports are capped at this many random records. */
+const ANON_EXPORT_LIMIT = 100;
 
 /**
  * GET /backend/export.php
- * Protected — requires a valid JWT with a bulk-capable role.
+ * Protected — requires a valid JWT. Anonymous users get 100 random records.
  *
  * Query params:
  *   date   – YYYY-MM-DD  (optional)
@@ -24,12 +27,19 @@ router.get('/export.php', requireAuth, async (req, res) => {
     return res.status(403).json({ error: 'Bulk export requires a Bulk Data or Bundle subscription.' });
   }
 
+  // Force anonymous users to a random sample — override any client-supplied params
+  const isAnon = role === 'anonymous';
+
   const date   = String(req.query.date   ?? '').trim();
   const state  = (String(req.query.state ?? 'ALL').trim().toUpperCase()) || 'ALL';
   const format = String(req.query.format ?? 'csv').trim().toLowerCase();
-  const limitRaw = req.query.limit !== undefined ? parseInt(String(req.query.limit), 10) : null;
-  const limit    = limitRaw !== null && Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : null;
-  const random   = String(req.query.random ?? '').toLowerCase() === 'true';
+
+  // Anonymous: always cap to ANON_EXPORT_LIMIT random records, ignore client params
+  const limitRaw = isAnon ? ANON_EXPORT_LIMIT
+    : (req.query.limit !== undefined ? parseInt(String(req.query.limit), 10) : null);
+  const limit  = isAnon ? ANON_EXPORT_LIMIT
+    : (limitRaw !== null && Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : null);
+  const random = isAnon ? true : String(req.query.random ?? '').toLowerCase() === 'true';
 
   if (!['csv', 'json', 'jsonl', 'xlsx'].includes(format)) {
     return res.status(400).json({ error: 'Invalid format. Use csv, xlsx, json, or jsonl.' });
