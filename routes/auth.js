@@ -1,7 +1,8 @@
-import { Router } from 'express';
-import jwt         from 'jsonwebtoken';
-import bcrypt      from 'bcrypt';
-import pool        from '../db.js';
+import { Router }          from 'express';
+import jwt                 from 'jsonwebtoken';
+import bcrypt              from 'bcrypt';
+import pool                from '../db.js';
+import { logAnonSession }  from './analytics.js';
 
 const router     = Router();
 const JWT_SECRET = process.env.JWT_SECRET ?? 'ucc-dev-secret-change-in-prod';
@@ -73,6 +74,14 @@ router.post('/login', async (req, res) => {
     }
 
     const token = signToken(user);
+
+    // Fire-and-forget: log anonymous sessions for visitor intelligence
+    if (user.role === 'anonymous') {
+      const ip        = req.headers['x-forwarded-for']?.split(',')[0].trim() ?? req.ip;
+      const userAgent = req.headers['user-agent'] ?? '';
+      logAnonSession(ip, userAgent); // intentionally not awaited
+    }
+
     return res.json({
       token,
       user: { username: user.username, role: user.role },

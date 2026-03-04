@@ -15,6 +15,7 @@ import exportRouter from './routes/export.js';
 import searchRouter from './routes/search.js';
 import statesRouter from './routes/states.js';
 import stripeRouter from './routes/stripe.js';
+import analyticsRouter from './routes/analytics.js';
 import { authLimiter, apiLimiter } from './middleware/rateLimiter.js';
 
 const app  = express();
@@ -69,11 +70,12 @@ app.use(express.json({ limit: '50kb' }));
 // ---------------------------------------------------------------------------
 // 4. Routes (with rate limiters applied per-router)
 // ---------------------------------------------------------------------------
-app.use('/api/auth',    authLimiter, authRouter);   // strict: 10 req / 15 min
-app.use('/api/search',  apiLimiter,  searchRouter); // general: 200 req / 15 min
-app.use('/api/stripe',  apiLimiter,  stripeRouter);
-app.use('/backend',     apiLimiter,  exportRouter);
-app.use('/backend',                  statesRouter); // public, no limit needed
+app.use('/api/auth',       authLimiter, authRouter);
+app.use('/api/search',    apiLimiter,  searchRouter);
+app.use('/api/stripe',    apiLimiter,  stripeRouter);
+app.use('/api/analytics', apiLimiter,  analyticsRouter);
+app.use('/backend',       apiLimiter,  exportRouter);
+app.use('/backend',                    statesRouter);
 
 // ---------------------------------------------------------------------------
 // 5. Start
