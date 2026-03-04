@@ -53,9 +53,9 @@ function buildSearchQuery(filters, role) {
     throw new Error('At least one search filter is required.');
   }
 
-  // Cap admin at 100,000 rows to protect the database
-  const limit = ROLE_LIMITS[role] ?? 3;
-  const sqlLimit = limit === null ? 100000 : limit;
+  // Use `in` check so admin's explicit `null` value isn't swallowed by `?? 3`
+  const roleLimit = role in ROLE_LIMITS ? ROLE_LIMITS[role] : 3;
+  const sqlLimit  = roleLimit === null ? 100000 : roleLimit;
 
   const sql =
     `SELECT ${SEARCH_COLUMNS.join(', ')} FROM ucc_filings` +
