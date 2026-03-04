@@ -17,9 +17,12 @@ function getStripe() {
   return _stripe;
 }
 
-/** Maps plan + interval to the Stripe Price ID from env vars. */
+/** Maps plan + interval to the Stripe Price ID from env vars.
+ *  interval='month' → MONTHLY, interval='year' → ANNUAL
+ */
 function getPriceId(plan, interval) {
-  const key = `STRIPE_PRICE_${plan.toUpperCase()}_${interval.toUpperCase()}LY`;
+  const suffix = interval === 'year' ? 'ANNUAL' : 'MONTHLY';
+  const key    = `STRIPE_PRICE_${plan.toUpperCase()}_${suffix}`;
   return process.env[key] ?? null;
 }
 
