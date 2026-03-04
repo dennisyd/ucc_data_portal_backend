@@ -4,7 +4,18 @@ import pool            from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? '');
+
+// Lazy — only instantiate Stripe when a request actually arrives.
+// This prevents a crash at startup when STRIPE_SECRET_KEY isn't set yet.
+let _stripe = null;
+function getStripe() {
+  if (!_stripe) {
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) throw new Error('STRIPE_SECRET_KEY environment variable is not set.');
+    _stripe = new Stripe(key);
+  }
+  return _stripe;
+}
 
 /** Maps plan + interval to the Stripe Price ID from env vars. */
 function getPriceId(plan, interval) {
@@ -41,7 +52,7 @@ router.post('/create-checkout-session', requireAuth, async (req, res) => {
   }
 
   try {
-    const session = await stripe.checkout.sessions.create({
+    const session = await getStripe().checkout.sessions.create({
       mode:        'subscription',
       line_items:  [{ price: priceId, quantity: 1 }],
       success_url: `${FRONTEND_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
@@ -75,7 +86,7 @@ router.post('/create-portal-session', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'No active Stripe subscription found.' });
     }
 
-    const session = await stripe.billingPortal.sessions.create({
+    const session = await getStripe().billingPortal.sessions.create({
       customer:   customerId,
       return_url: `${FRONTEND_URL}/account`,
     });
@@ -99,7 +110,7 @@ router.post('/webhook', async (req, res) => {
 
   let event;
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, secret);
+    event = getStripe().webhooks.constructEvent(req.body, sig, secret);
   } catch (err) {
     console.error('[stripe/webhook] signature verification failed:', err.message);
     return res.status(400).json({ error: 'Webhook signature verification failed.' });
