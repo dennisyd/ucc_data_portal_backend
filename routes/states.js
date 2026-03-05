@@ -19,7 +19,7 @@ router.get('/states', async (req, res) => {
          sm.last_created_at,
          CASE WHEN s.State IS NOT NULL THEN 1 ELSE 0 END AS is_scraped
        FROM States_Metadata sm
-       LEFT JOIN States s ON sm.debtor_state = s.state
+       LEFT JOIN States s ON sm.debtor_state COLLATE utf8mb4_general_ci = s.state COLLATE utf8mb4_general_ci
        ORDER BY sm.total_records DESC`
     );
 

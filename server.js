@@ -22,6 +22,10 @@ const app  = express();
 const PORT = process.env.PORT ?? 8080;
 const isProd = process.env.NODE_ENV === 'production';
 
+// Trust the first hop from Render's load balancer so that express-rate-limit
+// and req.ip correctly read the real client IP from X-Forwarded-For.
+app.set('trust proxy', 1);
+
 // ---------------------------------------------------------------------------
 // 1. Security headers via Helmet
 //    Sets X-Frame-Options, X-Content-Type-Options, Strict-Transport-Security,
