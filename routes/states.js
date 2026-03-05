@@ -10,8 +10,17 @@ const router = Router();
  */
 router.get('/states', async (req, res) => {
   try {
+    // Fetch metadata and flag which states are actively scraped
+    // by checking against the States table (contains only scraped state abbreviations)
     const [rows] = await pool.execute(
-      'SELECT debtor_state, total_records, last_created_at FROM States_Metadata ORDER BY total_records DESC'
+      `SELECT
+         sm.debtor_state,
+         sm.total_records,
+         sm.last_created_at,
+         CASE WHEN s.State IS NOT NULL THEN 1 ELSE 0 END AS is_scraped
+       FROM States_Metadata sm
+       LEFT JOIN States s ON sm.debtor_state = s.State
+       ORDER BY sm.total_records DESC`
     );
 
     const formatted = rows
@@ -22,6 +31,7 @@ router.get('/states', async (req, res) => {
         last_created_at: row.last_created_at
           ? new Date(row.last_created_at).toISOString().slice(0, 10)
           : null,
+        is_scraped:      row.is_scraped === 1,
       }));
 
     return res.json(formatted);
